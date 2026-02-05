@@ -133,13 +133,13 @@ If this is the first execution on a given machine:
 
 Navigate to the co-simulation folder:
 
-```
+```matlab
 cd ('cosim_link');
 ```
 
 Launch the Cosimulation Wizard:
 
-```
+```matlab
 cosimWizard
 ```
 
