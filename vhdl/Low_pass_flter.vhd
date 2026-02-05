@@ -185,99 +185,101 @@ USE ieee.std_logic_signed.all;
 USE work.comp_gen.all;
 --USE work.comp_somadores.all;
 -----------------------------------------------------
-ENTITY LPF_biowear_2 IS
+ENTITY Low_pass_flter IS
 --generic (N:integer:=16; K:integer:=16);
 generic (N:integer:=16);
     PORT (reset,clk,ld_l: IN STD_LOGIC;  
 		X: IN STD_LOGIC_VECTOR(12 DOWNTO 0);
 		--A1, A2, A3, A4: IN STD_LOGIC_VECTOR(17 DOWNTO 0);
 		S_LPF: OUT STD_LOGIC_VECTOR(N-1 DOWNTO 0));
-END LPF_biowear_2;
+END Low_pass_flter;
 
 -----------------------------------------------------
-ARCHITECTURE comportamento OF LPF_biowear_2 IS
+ARCHITECTURE comportamento OF Low_pass_flter IS
+    SIGNAL X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X10, X11, X12: STD_LOGIC_VECTOR(12 DOWNTO 0);
+    SIGNAL X_B0, X_B6_inv, X_B12: STD_LOGIC_VECTOR(15 DOWNTO 0);
+    SIGNAL Y0, Y1, Y2: STD_LOGIC_VECTOR(15 DOWNTO 0);
+    SIGNAL Sum00, Sum01, FIR_part, IIR_part, Sum03: STD_LOGIC_VECTOR(15 DOWNTO 0);
+    SIGNAL Y_A1, Y_A2_inv: STD_LOGIC_VECTOR(15 DOWNTO 0);
+    
+    -- Sinais auxiliares para -2x[n-6]
+    SIGNAL X6_ext, X6_shifted: STD_LOGIC_VECTOR(15 DOWNTO 0);
+    -- Sinal para substituir FIR_part durante teste
+    SIGNAL FIR_part_test : STD_LOGIC_VECTOR(15 DOWNTO 0) := (others => '0');
+BEGIN
+    -- Pipeline de entrada
+    R0_l: REG_GEN generic map(13) port map(clk,ld_l,reset, X,X0);    
+    R1_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X0,X1);    
+    R2_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X1,X2);    
+    R3_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X2,X3);    
+    R4_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X3,X4);    
+    R5_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X4,X5);    
+    R6_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X5,X6);    
+    R7_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X6,X7);    
+    R8_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X7,X8);
+    R9_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X8,X9);
+    R10_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X9,X10);    
+    R11_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X10,X11);    
+    R12_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X11,X12);    
 
---SIGNAL X_inv, X_inv2, X_inv4: STD_LOGIC_VECTOR(13 DOWNTO 0);
-SIGNAL X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X10, X11, X12: STD_LOGIC_VECTOR(12 DOWNTO 0);
-signal X_B0, X_B6_inv, Y_A2_inv : STD_LOGIC_VECTOR(N-1 downto 0);
-SIGNAL X_B6, X_B12: STD_LOGIC_VECTOR(N-1 DOWNTO 0);
-SIGNAL Y_A1, Y_A2: STD_LOGIC_VECTOR(N-1 DOWNTO 0); 
+    -- Extensão de sinal correta para 16 bits
+    X_B0 <= X(12) & X(12) & X(12) & X;
+    X_B12 <= X12(12) & X12(12) & X12(12) & X12;
+    
+    -- Cálculo de -2x[n-6]:
+    X6_ext <= X6(12) & X6(12) & X6(12) & X6;           -- 16 bits
+    X6_shifted <= X6_ext(14 downto 0) & '0';            -- Multiplicação por 2
+    inv_B6: twoscompliment generic map(16) port map(X6_shifted, X_B6_inv);
 
-SIGNAL Y0, Y, Y1, Y2: STD_LOGIC_VECtOR(N-1 DOWNTO 0);
-SIGNAL Sum00, Sum01, Sum02, Sum03: STD_LOGIC_VECTOR(N-1 DOWNTO 0); 
+    -- Parte FIR: x[n] - 2x[n-6] + x[n-12]
+    SUM_0: SUM_GEN generic map(16) port map(X_B0, X_B6_inv, Sum00);
+    SUM_1: SUM_GEN generic map(16) port map(Sum00, X_B12, FIR_part);
+    
+    -- Parte IIR: 2y[n-1] - y[n-2]
+    --Y_A1 <= Y1(15) & Y1(14 downto 0) & '0';            -- 2*y[n-1] com sinal preservado
+    Y_A1 <= Y1(14 downto 0) & '0';            -- 2*y[n-1] com sinal preservado
+    INV_Y_A2: twoscompliment generic map(16) port map(Y2, Y_A2_inv);
+    SUM_02: SUM_GEN generic map(16) port map(Y_A1, Y_A2_inv, IIR_part);
 
-signal tmp_ext  : std_logic_vector(16 downto 0);
-signal tmp_b6   : std_logic_vector(16 downto 0);
-signal tmp_b12  : std_logic_vector(16 downto 0);
-signal tmp_ya1  : std_logic_vector(N downto 0); -- N = 16 → tmp_ya1(16 downto 0)
+    -- >>> TESTE DA PARTE IIR: Substitua FIR_part por FIR_part_test <<<
+    --FIR_part_test <= (others => '0');  -- Força entrada FIR para zero
+    -- Teste: FIR 0.5 + IIR 0.5 = 1.0
+    --FIR_part_test <= X_B0; -- 0.5
+    --IIR_part <= "0000000000000000"; -- 0.5
 
+    -- Soma final FIR + IIR
+    SUM_03: SUM_GEN generic map(16) port map(FIR_part, IIR_part, Sum03);
+    --SUM_03: SUM_GEN generic map(16) port map(FIR_part_test, IIR_part, Sum03);
+    
+    -- Registradores de saída e realimentação
+    --R13_l: REG_GEN generic map(16) port map(clk, ld_l, reset, Sum03, Y0);
+    R14_l: REG_GEN generic map(16) port map(clk, ld_l, reset, Sum03, Y1);  
+    R15_l: REG_GEN generic map(16) port map(clk, ld_l, reset, Y1, Y2);
+    
+     -- Registradores com inicialização de teste
+    --PROCESS(clk, reset)
+    --BEGIN
+    --    IF reset = '1' THEN
+    --        Y0 <= (others => '0');
+    --        Y1 <= (others => '0');
+    --        Y2 <= (others => '0');
+    --    ELSIF rising_edge(clk) AND ld_l = '1' THEN
+    --        -- Injeção de impulso para teste
+    --        IF reset = '0' AND Y0 = 0 AND Y1 = 0 AND Y2 = 0 THEN
+    --            --Y0 <= X"1000";  -- Injeção de impulso (4096)
+    --            --Y0 <= "0000000100000000";  -- Injeção de impulso (0.5)
+    --        ELSE
+    --            Y0 <= Sum03;
+    --        END IF;
+            
+    --        Y1 <= Y0;
+    --        Y2 <= Y1;
+    --    END IF;
+    --END PROCESS;
 
---Y[n] = 2y[n − 1] − y[n − 2] + x[n] − 2x[n − 6] + x[n − 12]
---A0=1   A1          A2         B0     B6          B12         
-begin
-R0_l: REG_GEN generic map(13) port map(clk,ld_l,reset, X,X0);    
-R1_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X0,X1);    
-R2_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X1,X2);    
-R3_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X2,X3);    
-R4_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X3,X4);    
-R5_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X4,X5);    
-R6_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X5,X6);    
-R7_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X6,X7);    
-R8_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X7,X8);
-R9_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X8,X9);
-R10_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X9,X10);    
-R11_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X10,X11);    
-R12_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X11,X12);    
+    --S_LPF <= Y0;
+    S_LPF <= Sum03;
+    --S_LPF <= FIR_part;
+END comportamento;
 
---R13_l: REG_GEN generic map(N) port map(clk,ld_l,reset, Sum01,Y0);
-R13_l: REG_GEN generic map(N) port map(clk,ld_l,reset, Sum03,Y0);
-R14_l: REG_GEN generic map(N) port map(clk,ld_l,reset, Y0,Y1);  
-R15_l: REG_GEN generic map(N) port map(clk,ld_l,reset, Y1,Y2);     
-
-
-X_B0 <= X(12) & X(12) & X(12) & X(12) & X(11 downto 0);
-X_B6 <= X6(12) & X6(12) & X6(12) & X6(11 downto 0) & '0';
-inv_B6: twoscompliment generic map(N) port map(X_B6,X_B6_inv);
-X_B12 <= X12(12) & X12(12) & X12(12) & X12(12) & X12(11 downto 0);
-
-SUM_0: SUM_GEN generic map(N) port map(X_B0,X_B6_inv,Sum00); --
---SUM_1: SUM_GEN generic map(N) port map(Sum00, X_B12, Sum01);
-
---Sum01 <="0000001000000000";
-
---tmp_ext  <= X(12) & X(12) & X(12) & X(12) & X(11 downto 0) & '0';
---X_B0 <= X(12) & X(12) & X(12) & X(12) & X(11 downto 0); -- desloca 3 bits para esquerda
---X_B0 <= "0000001000000000"; -- desloca 3 bits para esquerda
---tmp_b6   <= X6(12) & X6(12) & X6(12) & X6(12) & X6(11 downto 0) & '0';
---tmp_b12  <= X12(12) & X12(12) & X12(12) & X12(12) & X12(11 downto 0) & '0';
---tmp_ya1  <= Y(N-1) & Y(N-2 downto 0) & '0';
-
-
---X_B6   <= tmp_b6(15 downto 0);
---X_B12  <= tmp_b12(16) & tmp_b12(15 downto 1);
---Y_A1   <= tmp_ya1(15 downto 0); -- pega os bits 16 downto 1 também
---Y_A1 <= tmp_ya1(16) & tmp_ya1(14 downto 0);
---Y_A1 <= tmp_ya1(16 downto 1); -- 
---Y_A1 <= Y(15) & tmp_ya1(13 downto 0) & '0';
-Y_A1 <= Y1(15) & Y1(13 downto 0) & '0';
---inv_B6: twoscompliment generic map(N) port map(X_B6,X_B6_inv);
---SUM_0: SUM_GEN generic map(N) port map(X_B0,X_B6_inv,Sum00); -- 
-
---SUM_1: SUM_GEN generic map(N) port map(Sum00, X_B12, Sum01);
-Sum01 <="0000001000000000";
-Y <= Sum01;
---SUM_02: SUM_GEN generic map(N) port map(Sum01, Y_A1, Sum02);
-SUM_02: SUM_GEN generic map(N) port map(Y_A1, Y_A2_inv, Sum02); 
---INV_Y_A2: twoscompliment generic map(N) port map("0000100000000000",Y_A2_inv);
-INV_Y_A2: twoscompliment generic map(N) port map(Y2,Y_A2_inv); -- 
---SUM_03: SUM_GEN generic map(N) port map(Sum02, Y_A2_inv, Sum03); -- 
-SUM_03: SUM_GEN generic map(N) port map(Sum01, Sum02, Sum03); -- 
---Y_A2<=Y_A2_inv; -- Só para avalaiar a saída
--- Saída final:
---S_LPF <= Sum03;
---S_LPF <= Sum03;
-S_LPF <= Y0;
-
-
-end comportamento;
 -----------------------------------------------------
