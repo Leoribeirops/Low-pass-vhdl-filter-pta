@@ -12,7 +12,7 @@
 # === Arquivos Temporários ===
 ############################
 
-data/*
+#data/*
 results/*
 docs/*
 scripts/*
@@ -156,7 +156,7 @@ qsys/
 *.autosave
 *.mex*
 *.p
-*.mat
+#*.mat
 
 # Simulink
 #slprj/
