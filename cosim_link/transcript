@@ -14,8 +14,8 @@
 # //
 # do compile_and_launch.tcl
 # vsim low_pass_flter -t 1ns -voptargs="+acc" -f parameter_low_pass_flter.cfg -foreign "simlinkserver {E:/Program Files/MATLAB/R2025b/toolbox/edalink/extensions/modelsim/windows64/liblfmhdls_tmwvs.dll}  ; -socket 53721 " 
-# Start time: 11:07:36 on Feb 05,2026
-# ** Note: (vsim-8009) Loading existing optimized design _opt
+# Start time: 11:15:54 on Feb 05,2026
+# ** Note: (vsim-3813) Design is being optimized due to module recompilation...
 # Loading std.standard
 # Loading std.textio(body)
 # Loading ieee.std_logic_1164(body)
@@ -69,7 +69,7 @@
 # ** Warning: There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es).
 #    Time: 0 ns  Iteration: 2  Instance: /low_pass_flter/inv_B6
 # ** Warning: There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es).
-#    Time: 0 ns  Iteration: 4  Instance: /low_pass_flter/SUM_0
+#    Time: 50 ns  Iteration: 3  Instance: /low_pass_flter/SUM_0
 # ** Warning: There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es).
 #    Time: 50 ns  Iteration: 3  Instance: /low_pass_flter/SUM_1
 # ** Warning: There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es).
@@ -78,3 +78,5 @@
 #    Time: 50 ns  Iteration: 5  Instance: /low_pass_flter/SUM_03
 # done
 # Simulation halt requested by foreign interface.
+# End time: 11:20:00 on Feb 05,2026, Elapsed time: 0:04:06
+# Errors: 0, Warnings: 23

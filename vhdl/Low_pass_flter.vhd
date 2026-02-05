@@ -206,6 +206,8 @@ ARCHITECTURE comportamento OF Low_pass_flter IS
     SIGNAL X6_ext, X6_shifted: STD_LOGIC_VECTOR(15 DOWNTO 0);
     -- Sinal para substituir FIR_part durante teste
     SIGNAL FIR_part_test : STD_LOGIC_VECTOR(15 DOWNTO 0) := (others => '0');
+    SIGNAL aux_SUM00, aux_FIR_part : STD_LOGIC_VECTOR(16 DOWNTO 0);
+
 BEGIN
     -- Pipeline de entrada
     R0_l: REG_GEN generic map(13) port map(clk,ld_l,reset, X,X0);    
@@ -223,7 +225,7 @@ BEGIN
     R12_l: REG_GEN generic map(13) port map(clk,ld_l,reset,X11,X12);    
 
     -- Extensão de sinal correta para 16 bits
-    X_B0 <= X(12) & X(12) & X(12) & X;
+    X_B0 <= X0(12) & X0(12) & X0(12) & X0;
     X_B12 <= X12(12) & X12(12) & X12(12) & X12;
     
     -- Cálculo de -2x[n-6]:
@@ -231,12 +233,11 @@ BEGIN
     X6_shifted <= X6_ext(14 downto 0) & '0';            -- Multiplicação por 2
     inv_B6: twoscompliment generic map(16) port map(X6_shifted, X_B6_inv);
 
-    -- Parte FIR: x[n] - 2x[n-6] + x[n-12]
+    -- Parte FIR: x[n] - 2x[n-6] + x[n-12] SUM_GEN_2
     SUM_0: SUM_GEN generic map(16) port map(X_B0, X_B6_inv, Sum00);
     SUM_1: SUM_GEN generic map(16) port map(Sum00, X_B12, FIR_part);
-    
+
     -- Parte IIR: 2y[n-1] - y[n-2]
-    --Y_A1 <= Y1(15) & Y1(14 downto 0) & '0';            -- 2*y[n-1] com sinal preservado
     Y_A1 <= Y1(14 downto 0) & '0';            -- 2*y[n-1] com sinal preservado
     INV_Y_A2: twoscompliment generic map(16) port map(Y2, Y_A2_inv);
     SUM_02: SUM_GEN generic map(16) port map(Y_A1, Y_A2_inv, IIR_part);
@@ -249,37 +250,13 @@ BEGIN
 
     -- Soma final FIR + IIR
     SUM_03: SUM_GEN generic map(16) port map(FIR_part, IIR_part, Sum03);
-    --SUM_03: SUM_GEN generic map(16) port map(FIR_part_test, IIR_part, Sum03);
     
     -- Registradores de saída e realimentação
-    --R13_l: REG_GEN generic map(16) port map(clk, ld_l, reset, Sum03, Y0);
     R14_l: REG_GEN generic map(16) port map(clk, ld_l, reset, Sum03, Y1);  
     R15_l: REG_GEN generic map(16) port map(clk, ld_l, reset, Y1, Y2);
-    
-     -- Registradores com inicialização de teste
-    --PROCESS(clk, reset)
-    --BEGIN
-    --    IF reset = '1' THEN
-    --        Y0 <= (others => '0');
-    --        Y1 <= (others => '0');
-    --        Y2 <= (others => '0');
-    --    ELSIF rising_edge(clk) AND ld_l = '1' THEN
-    --        -- Injeção de impulso para teste
-    --        IF reset = '0' AND Y0 = 0 AND Y1 = 0 AND Y2 = 0 THEN
-    --            --Y0 <= X"1000";  -- Injeção de impulso (4096)
-    --            --Y0 <= "0000000100000000";  -- Injeção de impulso (0.5)
-    --        ELSE
-    --            Y0 <= Sum03;
-    --        END IF;
-            
-    --        Y1 <= Y0;
-    --        Y2 <= Y1;
-    --    END IF;
-    --END PROCESS;
 
-    --S_LPF <= Y0;
     S_LPF <= Sum03;
-    --S_LPF <= FIR_part;
+  
 END comportamento;
 
 -----------------------------------------------------
